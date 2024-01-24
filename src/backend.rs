@@ -97,6 +97,12 @@ impl Tokenizer {
                 //Check for mathematcial expression, will crash if there was an invalid character
                 final_list.push(Tokenizer::extract_tokens(char));
             }
+            //Chat gpt implementation was flawed as hell so dont mind me adding this
+            else if current_number.is_empty() {
+
+                //This will check for token right after we just pushed back another token
+                final_list.push(Tokenizer::extract_tokens(char));
+            }
 
         }
 
@@ -108,15 +114,16 @@ impl Tokenizer {
     }
 
     fn extract_tokens(char: char) -> Operators {
-        use Operators::{Addition, Division, Multiplication, Subtraction};
+        use Operators::{Addition, Division, Multiplication, Subtraction, Lbracket, RBracket};
 
         match char {
             '+' => Addition,
             '-' => Subtraction,
             '*' => Multiplication,
             '/' => Division,
-
-            _ => panic!("You fucked up lil bro, spread them cheeks!")
+            ')' => RBracket,
+            '(' => Lbracket,
+            _ => panic!("You fucked up lil bro, spread them cheeks! {}", char)
         }
     }
 }
