@@ -1,14 +1,15 @@
 use std::fmt::Display;
+use regex::Regex;
 
-#[derive(Debug)]
-pub enum Operators {
+#[derive(Debug, PartialEq, Clone)]
+pub enum Operator {
     Addition,
     Subtraction,
     Multiplication,
     Division,
 
     //Left bracket
-    Lbracket,
+    LBracket,
     //Right bracket
     RBracket,
 
@@ -16,21 +17,22 @@ pub enum Operators {
 }
 
 pub struct Calculator {
-    input: Box<String>,
+    //User input, this should be static
+    input: String,
 
-    memory: Option<Box<Vec<Operators>>>,
+    memory: Option<Vec<Operator>>,
 }
 
 impl Calculator {
     ///Calculator new
-    pub fn new(input: impl ToString) {
+    pub fn init(input: impl ToString) {
         //Make new calculator instance
-        Calculator::init(input.to_string()).main();
+        Calculator::new(input.to_string()).main();
     }
 
-    fn init(input: String) -> Self {
+    fn new(user_input: String) -> Self {
         //Allocate memory for struct xD
-        Calculator { input: Box::new(input), memory: None /*Init mem with none*/ }
+        Calculator { input: user_input, memory: None /*Init mem with none*/ }
     }
 
     fn main(&mut self) {
@@ -42,7 +44,7 @@ impl Calculator {
 
     fn tokenizer(&mut self) {
         //Set memory
-        self.memory = Some(Box::new(Tokenizer::tokenize(*self.input.clone())));
+        self.memory = Some(tokenizer::tokenize(self.input.clone()));
     }
 }
 
@@ -63,7 +65,7 @@ impl Expr for Calculator {
 impl Display for Calculator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(
-            &format!("Input: {}\nMemory: {:?}", *self.input, self.memory)
+            &format!("Input: {}\nMemory: {:?}", self.input, self.memory)
         )
     }
 }
@@ -75,46 +77,111 @@ trait Expr {
     fn div(rhs: f64, lhs: f64) -> f64;
 }
 
-struct Tokenizer {}
+mod tokenizer {
+    use super::Operator;
 
-impl Tokenizer {
-    fn tokenize(string : String) -> Vec<Operators> {
-        let mut final_list: Vec<Operators> = Vec::new();
+    pub(crate) fn tokenize(string : String) -> Vec<Operator> {
+        let mut final_list: Vec<Operator> = Vec::new();
 
         //It doesnt really matter if this is a string or not, i just want to push it back, plus we also check if its a number nefore pushing back
         let mut current_number: String = String::new();
 
         for char in string.chars() {
-            if char.is_digit(10) {
+            if char.is_ascii_digit() || char == '.' {
                 current_number.push(char);
             } else if !current_number.is_empty() {
                 //Push to final number
-                final_list.push(Operators::Num(current_number.parse().unwrap()));
+                final_list.push(Operator::Num(current_number.parse().unwrap()));
 
                 //clear temporary string
                 current_number.clear();
                 
                 //Check for mathematcial expression, will crash if there was an invalid character
-                final_list.push(Tokenizer::extract_tokens(char));
+                let extracted_token = extract_tokens(char);
+                
+                //Check for (123(123)), it will convert it to a (123*(123)) which will be simplified to (123*123) then to 123*123 = _Result_
+                if let Some(last_item_in_list) = final_list.last() {
+
+                    //Check if after number there is a (
+                    if extracted_token == Operator::LBracket && matches!(last_item_in_list, Operator::Num(_))  {
+                        //Insert the *
+                        final_list.insert(final_list.len(), Operator::Multiplication);
+                    
+                    }
+
+                }
+
+                //Only push back expression after we checked for inserting the * because this way we can use just .last()
+                final_list.push(extracted_token.clone());
+                
             }
             //Chat gpt implementation was flawed as hell so dont mind me adding this
             else if current_number.is_empty() {
-
                 //This will check for token right after we just pushed back another token
-                final_list.push(Tokenizer::extract_tokens(char));
+
+                let extracted_token = extract_tokens(char);
+                
+                //If (30)(30) is present insert a * for parsing more complex equations
+                if let Some(last_item_in_list) = final_list.last() {
+                    
+                    //Check for extracted token and last_item in the list eg:       |
+                    //                                                              V
+                    //                                                         (123)*(123)
+                    if extracted_token == Operator::LBracket && last_item_in_list == &Operator::RBracket {
+                        //Insert the *
+                        final_list.insert(final_list.len(), Operator::Multiplication);
+                    }
+
+                }
+                
+
+                final_list.push(extracted_token);
             }
 
         }
 
         if !current_number.is_empty() {
-            final_list.push(Operators::Num(current_number.parse().unwrap()));
+            final_list.push(Operator::Num(current_number.parse().unwrap()));
         }
+
+        sort(final_list.clone());
 
         final_list
     }
 
-    fn extract_tokens(char: char) -> Operators {
-        use Operators::{Addition, Division, Multiplication, Subtraction, Lbracket, RBracket};
+    pub(crate) fn sort(equation: Vec<Operator>) {
+        let mut suggested_brackets = 0;
+        let mut first_capture = 0;
+        let mut second_capture = 0;
+        for (index, item) in equation.iter().enumerate() {
+            if item == &Operator::LBracket {
+                suggested_brackets += 1;
+                first_capture = index;
+            }
+
+        }
+        for (index, item) in equation.iter().rev().enumerate() {
+            if item == &Operator::RBracket {
+                suggested_brackets += 1;
+                second_capture = index;
+            }
+
+        }
+
+        let mut vec: Vec<Operator> = Vec::new();
+
+        for index in first_capture..=second_capture {
+            vec.push(dbg!(equation[index].clone()));
+        }
+
+        dbg!(first_capture);
+        dbg!(second_capture);
+        dbg!(suggested_brackets);
+        dbg!(vec);
+    }
+
+    fn extract_tokens(char: char) -> Operator {
+        use Operator::{Addition, Division, Multiplication, Subtraction, LBracket, RBracket};
 
         match char {
             '+' => Addition,
@@ -122,8 +189,9 @@ impl Tokenizer {
             '*' => Multiplication,
             '/' => Division,
             ')' => RBracket,
-            '(' => Lbracket,
+            '(' => LBracket,
             _ => panic!("You fucked up lil bro, spread them cheeks! {}", char)
         }
     }
+
 }
