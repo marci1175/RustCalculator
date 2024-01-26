@@ -9,6 +9,6 @@ mod tests;
 mod backend;
 
 fn main() {
-    Calculator::init("(123+124142)");
+    Calculator::init("123+(124142-123(123))");
 }
 

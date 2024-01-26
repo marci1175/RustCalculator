@@ -1,18 +1,26 @@
 use std::fmt::Display;
 use regex::Regex;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Operator {
+    ///+
     Addition,
+    
+    ///-
     Subtraction,
+
+    ///* 
     Multiplication,
+    
+    ///÷
     Division,
 
-    //Left bracket
+    ///Left bracket, (
     LBracket,
-    //Right bracket
+    ///Right bracket, )
     RBracket,
 
+    ///Number
     Num(f64),
 }
 
@@ -69,7 +77,6 @@ impl Display for Calculator {
         )
     }
 }
-
 trait Expr {
     fn add(rhs: f64, lhs: f64) -> f64;
     fn sub(rhs: f64, lhs: f64) -> f64;
@@ -77,7 +84,37 @@ trait Expr {
     fn div(rhs: f64, lhs: f64) -> f64;
 }
 
+#[derive(Debug)]
+pub struct LeftBracket {
+    level: usize,
+}
+
+impl LeftBracket {
+    fn new(level : usize) -> LeftBracket {
+        LeftBracket { level }
+    }
+}
+
+#[derive(Debug)]
+pub struct RightBracket {
+    level: usize,
+}
+
+impl RightBracket {
+    fn new(level : usize) -> RightBracket {
+        RightBracket { level }
+    }
+}
+
+#[derive(Debug)]
+pub enum SemanticItem {
+    Bracketed(LeftBracket, Box<crate::backend::SemanticItem>, RightBracket),
+    Normal(Vec<Operator>, Option<Box<crate::backend::SemanticItem>>),
+}
+
 mod tokenizer {
+    use crate::backend::{LeftBracket, RightBracket, SemanticItem};
+
     use super::Operator;
 
     pub(crate) fn tokenize(string : String) -> Vec<Operator> {
@@ -149,35 +186,40 @@ mod tokenizer {
         final_list
     }
 
+    pub(crate) fn extract_equation<T>(bounds: std::ops::Range<usize>, vector: Vec<T>) -> Vec<T>
+    where
+        T: Copy,
+      {
+        let mut extracted_vector: Vec<T> = Vec::new();
+
+        for index in bounds {
+            extracted_vector.push(vector[index]);
+        };
+
+        return extracted_vector;
+    }
+
     pub(crate) fn sort(equation: Vec<Operator>) {
-        let mut suggested_brackets = 0;
-        let mut first_capture = 0;
-        let mut second_capture = 0;
-        for (index, item) in equation.iter().enumerate() {
-            if item == &Operator::LBracket {
-                suggested_brackets += 1;
-                first_capture = index;
+        
+        //This checks if the hierarchy should be reseted, im doing this because i cant set the usize to -1
+        let mut was_decreased: bool = false;
+
+        let mut lbracket_counter = 0;
+        let mut rbracket_counter = 0;
+
+        for (hierarchy_index, item) in equation.iter().enumerate() {
+            if *item == Operator::LBracket {
+                for (index, item) in equation.iter().rev().enumerate() {
+                    if *item == Operator::RBracket {
+                        dbg!(SemanticItem::Bracketed(LeftBracket::new(hierarchy_index), Box::new(SemanticItem::Normal(extract_equation(hierarchy_index..hierarchy_index, equation.clone()), None)), RightBracket::new(index)));
+                    }
+                }
             }
-
-        }
-        for (index, item) in equation.iter().rev().enumerate() {
-            if item == &Operator::RBracket {
-                suggested_brackets += 1;
-                second_capture = index;
-            }
-
         }
 
-        let mut vec: Vec<Operator> = Vec::new();
+        dbg!(lbracket_counter);
+        dbg!(rbracket_counter);
 
-        for index in first_capture..=second_capture {
-            vec.push(dbg!(equation[index].clone()));
-        }
-
-        dbg!(first_capture);
-        dbg!(second_capture);
-        dbg!(suggested_brackets);
-        dbg!(vec);
     }
 
     fn extract_tokens(char: char) -> Operator {
