@@ -26,9 +26,7 @@ pub enum Operator {
     BracketItem(BracketItem),
 }
 
-impl Operator {
-    
-}
+impl Operator {}
 
 pub struct Calculator {
     //User input, this should be static
@@ -125,32 +123,34 @@ impl Iterator for BracketItem {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner_equation.iter().next().cloned()
     }
-
 }
 
 impl BracketItem {
     fn new(equation: Vec<Operator>, equation_level: usize) -> Self {
-        BracketItem { level: equation_level, inner_equation: equation }
+        BracketItem {
+            level: equation_level,
+            inner_equation: equation,
+        }
+    }
+
+    fn into_inner(&self) -> Vec<Operator> {
+        self.inner_equation.to_owned()
     }
 }
 
-///Used for determining the edits we want to make to the orginal vector
-// pub struct DesiredEdits {
-//     range: std::ops::Range<usize>,
-//     to_replace_with: BracketItem,
-// }
+impl Into<Vec<Operator>> for BracketItem {
+    fn into(self) -> Vec<Operator> {
+        let mut inner_equation = self.inner_equation;
+        inner_equation.insert(0, Operator::LBracket);
+        inner_equation.push(Operator::RBracket);
 
-// impl DesiredEdits {
-//     fn new(range: std::ops::Range<usize>, to_replace_with: BracketItem) -> Self {
-//         Self {
-//             range,
-//             to_replace_with,
-//         }
-//     }
-// }
-
+        inner_equation
+    }
+}
 
 mod tokenizer {
+    use std::ops::{RangeBounds, RangeInclusive};
+
     use crate::backend::{BracketItem, LeftBracket, RightBracket};
 
     use super::Operator;
@@ -220,61 +220,57 @@ mod tokenizer {
         final_list
     }
 
-    pub(crate) fn remove_parts<T>(bounds: std::ops::Range<usize>, vector: Vec<T>) -> Vec<T>
+    pub(crate) fn remove_parts<T>(bounds: RangeInclusive<usize>, mut vector: Vec<T>) -> Vec<T>
     where
         T: Clone,
     {
-        let mut extracted_vector: Vec<T> = Vec::new();
-
         for index in bounds {
-            extracted_vector.remove(index);
+            vector.remove(index);
         }
 
-        return extracted_vector;
+        vector
     }
 
     pub(crate) fn sort(equation: Vec<Operator>) {
         //This checks if the hierarchy should be reseted, im doing this because i cant set the usize to -1
-        let mut was_decreased: bool = false;
-
         let mut bracket_level_counter: i32 = 0;
 
-        let mut right_bracket_counter = 0;
+        let mut right_bracket_counter: i32 = 0;
 
         let mut captured_brackets: Vec<BracketItem> = Vec::new();
-        
+
         //123+(124142-123(123))
-        
+
         //1 + (2) + (3)
 
         //bracket_level _ocunter is used for cehcking the brackets level (this is a note to self, this is obvious)
-        
-        // let mut 
 
         for (left_index, left_item) in equation.iter().enumerate() {
             if *left_item == Operator::LBracket {
-                
                 //Reset right bracket counter
                 right_bracket_counter = 0;
 
                 //Search for the Eq closeure => ")", we assume the input is correct
                 for (right_index, right_item) in equation.iter().enumerate().rev() {
-                    
                     //Found it! :)
                     if *right_item == Operator::RBracket {
-                        
                         //Check for bracket level
                         if right_bracket_counter == bracket_level_counter {
                             //Leave out the ( and )s
-                            captured_brackets.push(BracketItem::new(equation[left_index + 1..=right_index - 1].iter().cloned().collect::<Vec<_>>(), bracket_level_counter as usize))
+                            captured_brackets.push(BracketItem::new(
+                                equation[left_index + 1..=right_index - 1]
+                                    .iter()
+                                    .cloned()
+                                    .collect::<Vec<_>>(),
+                                bracket_level_counter as usize,
+                            ))
                         }
 
                         //Increase bracket level counter
                         right_bracket_counter += 1;
                     }
-
                 }
-                
+
                 bracket_level_counter += 1;
             }
             if *left_item == Operator::RBracket {
@@ -282,8 +278,27 @@ mod tokenizer {
             }
         }
 
-        dbg!(captured_brackets);
+        dbg!(captured_brackets.clone());
 
+        //Iterate over captures, reverse
+        for (index, bracket_item) in captured_brackets.iter().enumerate().rev() {
+            if index > 0 {
+                //Get the position of the first occurence, we can use .unwrap() because it MUST be found
+                let occurence_pos = captured_brackets[index - 1]
+                    .into_inner()
+                    .windows(bracket_item.into_inner().len())
+                    .position(|pos| pos == bracket_item.into_inner())
+                    .unwrap();
+                let range = occurence_pos..=occurence_pos + bracket_item.into_inner().len() + 1;
+                dbg!(&range);
+                
+                remove_parts(range, captured_brackets.clone());
+
+                captured_brackets[index - 1].into_inner().append(&mut bracket_item.into_inner());
+
+                dbg!(&captured_brackets);
+            }
+        }
     }
 
     fn extract_tokens(char: char) -> Operator {
