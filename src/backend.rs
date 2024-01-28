@@ -26,6 +26,10 @@ pub enum Operator {
     BracketItem(BracketItem),
 }
 
+impl Operator {
+    
+}
+
 pub struct Calculator {
     //User input, this should be static
     input: String,
@@ -36,8 +40,8 @@ pub struct Calculator {
 impl Calculator {
     ///Calculator new
     pub fn init(input: impl ToString) {
-        //Make new calculator instance
-        Calculator::new(input.to_string()).main();
+        //Make new calculator instance, remove all the whitespace
+        Calculator::new(input.to_string().trim().replace(" ", "")).main();
     }
 
     fn new(user_input: String) -> Self {
@@ -124,8 +128,30 @@ impl Iterator for BracketItem {
 
 }
 
+impl BracketItem {
+    fn new(equation: Vec<Operator>, equation_level: usize) -> Self {
+        BracketItem { level: equation_level, inner_equation: equation }
+    }
+}
+
+///Used for determining the edits we want to make to the orginal vector
+// pub struct DesiredEdits {
+//     range: std::ops::Range<usize>,
+//     to_replace_with: BracketItem,
+// }
+
+// impl DesiredEdits {
+//     fn new(range: std::ops::Range<usize>, to_replace_with: BracketItem) -> Self {
+//         Self {
+//             range,
+//             to_replace_with,
+//         }
+//     }
+// }
+
+
 mod tokenizer {
-    use crate::backend::{LeftBracket, RightBracket};
+    use crate::backend::{BracketItem, LeftBracket, RightBracket};
 
     use super::Operator;
 
@@ -194,14 +220,14 @@ mod tokenizer {
         final_list
     }
 
-    pub(crate) fn extract_equation<T>(bounds: std::ops::Range<usize>, vector: Vec<T>) -> Vec<T>
+    pub(crate) fn remove_parts<T>(bounds: std::ops::Range<usize>, vector: Vec<T>) -> Vec<T>
     where
-        T: Copy,
+        T: Clone,
     {
         let mut extracted_vector: Vec<T> = Vec::new();
 
         for index in bounds {
-            extracted_vector.push(vector[index]);
+            extracted_vector.remove(index);
         }
 
         return extracted_vector;
@@ -214,26 +240,33 @@ mod tokenizer {
         let mut bracket_level_counter: i32 = 0;
 
         let mut right_bracket_counter = 0;
+
+        let mut captured_brackets: Vec<BracketItem> = Vec::new();
+        
         //123+(124142-123(123))
         
         //1 + (2) + (3)
+
+        //bracket_level _ocunter is used for cehcking the brackets level (this is a note to self, this is obvious)
+        
+        // let mut 
 
         for (left_index, left_item) in equation.iter().enumerate() {
             if *left_item == Operator::LBracket {
                 
                 //Reset right bracket counter
                 right_bracket_counter = 0;
-                
+
                 //Search for the Eq closeure => ")", we assume the input is correct
-                for (right_index, right_item) in equation.iter().rev().enumerate() {
+                for (right_index, right_item) in equation.iter().enumerate().rev() {
                     
                     //Found it! :)
                     if *right_item == Operator::RBracket {
                         
                         //Check for bracket level
                         if right_bracket_counter == bracket_level_counter {
-                            //Now extract the equation
-                            dbg!(equation[left_index..equation.len() - right_index].iter().cloned().collect::<Vec<_>>());
+                            //Leave out the ( and )s
+                            captured_brackets.push(BracketItem::new(equation[left_index + 1..=right_index - 1].iter().cloned().collect::<Vec<_>>(), bracket_level_counter as usize))
                         }
 
                         //Increase bracket level counter
@@ -244,7 +277,12 @@ mod tokenizer {
                 
                 bracket_level_counter += 1;
             }
+            if *left_item == Operator::RBracket {
+                bracket_level_counter -= 1;
+            }
         }
+
+        dbg!(captured_brackets);
 
     }
 
