@@ -22,6 +22,6 @@ fn main() {
         }
     }
 
-    Calculator::init("(3 + (3(23-22)-(213/2)))");
+    Calculator::init("9 / (3 + (3(23-22)-(213/2)))");
     // Calculator::init("1 - (2) - (3)")
 }

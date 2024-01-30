@@ -216,17 +216,6 @@ mod tokenizer {
         final_list
     }
 
-    pub(crate) fn remove_parts<T>(bounds: std::ops::Range<usize>, mut vector: Vec<T>) -> Vec<T>
-    where
-        T: Clone,
-    {
-        for index in bounds {
-            vector.remove(index);
-        }
-
-        vector
-    }
-
     pub(crate) fn sort(equation: Vec<Operator>) {
         //This checks if the hierarchy should be reseted, im doing this because i cant set the usize to -1
         let mut bracket_level_counter: i32 = 0;
@@ -315,67 +304,7 @@ mod tokenizer {
             }
         }
 
-        for capture in captured_brackets {
-            //Check if we done fucked up (if there are brackets in the equation we are doomed)
-            let checked_brackets = if let Some(_) = capture.inner_equation.iter().position(|bracket| {
-                if *bracket == Operator::RBracket || *bracket == Operator::RBracket {
-                    true
-                }
-                else {
-                    false
-                }
-            }) {
-                //Break equation into whatever amount of parts
-                let mut problematic_equation = capture.inner_equation.clone();
-
-                problematic_equation.push(Operator::RBracket);
-                problematic_equation.insert(0, Operator::LBracket);
-
-                //This is what will be returned, at the end of the re-sort (with a diffrent algorithm)
-                let mut equation_parts: Vec<BracketItem> = Vec::new();
-
-                //This is used to backup the current equation
-                let mut temp_equation_parts: Vec<Operator> = Vec::new();
-
-                //we assume the equation looks something like this (123)-(123)
-                for (index, equation_item) in problematic_equation.iter().enumerate() {
-                    if *equation_item == Operator::LBracket {
-                        for equation_part_index in index..problematic_equation.len() - 1 {
-                            if *equation_item == Operator::RBracket {
-                                break;                                                
-                            }
-                            else {
-                                temp_equation_parts.push(problematic_equation[equation_part_index].clone());
-                            }
-                        }
-
-                        //Push back (hopefully) the correct BracketItem (We convert the vec into one) into equation_parts
-                        equation_parts.push(BracketItem::new(temp_equation_parts.clone(), bracket_level_counter as usize));
-                    }
-                }
-
-                //Return an option, so we dodge the rust compiler
-                Some(equation_parts)
-            } else {
-                //This should already be known, so no suprise, but we can still pattern match outside of this block
-                None
-            };
-
-
-
-            if let Some(bracket_items) = checked_brackets {
-                // for bracket_item in bracket_items {
-                    // captured_brackets.push(bracket_item)
-                    // dbg!(bracket_item);
-                // }
-                dbg!(&bracket_items);
-            } else {
-                // captured_brackets.push(capture);
-                // dbg!(capture);
-            };
-        }
-
-        // dbg!(&captured_brackets);
+        dbg!(&captured_brackets);
     }
 
     fn extract_tokens(char: char) -> Operator {
