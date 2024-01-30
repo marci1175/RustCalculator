@@ -235,37 +235,49 @@ mod tokenizer {
                 //Reset right bracket counter
                 right_bracket_counter = 0;
 
+                bracket_level_counter = 0;
+
                 //Search for the Eq closeure => ")", we assume the input is correct
-                for (right_index, right_item) in equation.iter().enumerate().rev() {
-                    //Found it! :)
-                    if *right_item == Operator::RBracket {
-                        //Check for bracket level
-                        if right_bracket_counter == bracket_level_counter {
-                            //Leave out the ( and )s
-                            let capture = BracketItem::new(
-                                equation[left_index + 1..=right_index - 1]
-                                    .iter()
-                                    .cloned()
-                                    .collect::<Vec<_>>(),
-                                bracket_level_counter as usize,
-                            );
+                // for (right_index, right_item) in equation.iter().enumerate().rev() {
+                //     //Found it! :)
+                //     if *right_item == Operator::RBracket {
+                //         //Check for bracket level
+                //         if right_bracket_counter == bracket_level_counter {
+                //             //Leave out the ( and )s
+                //             let capture = BracketItem::new(
+                //                 equation[left_index + 1..=right_index - 1]
+                //                     .iter()
+                //                     .cloned()
+                //                     .collect::<Vec<_>>(),
+                //                 bracket_level_counter as usize,
+                //             );
+                //             captured_brackets.push(capture);
+                //         }
+                //         //Increase bracket level counter
+                //         right_bracket_counter += 1;
+                //     }
+                // }
+                
+                let mut temp_vec: Vec<Operator> = Vec::new();
 
-                            captured_brackets.push(capture);
-                        }
-
-                        //Increase bracket level counter
-                        right_bracket_counter += 1;
+                for item in equation[left_index..equation.len() - 1].iter() {
+                    if *item == Operator::RBracket {
+                        captured_brackets.push(BracketItem::new(temp_vec.clone(), bracket_level_counter as usize));
+                        bracket_level_counter -= 1;
+                        break;
+                    }
+                    else if *item == Operator::LBracket {
+                        bracket_level_counter += 1;
+                    }
+                    else {
+                        temp_vec.push(item.clone())                        
                     }
                 }
-
-                bracket_level_counter += 1;
-            }
-            if *left_item == Operator::RBracket {
-                bracket_level_counter -= 1;
+                
             }
         }
 
-        // dbg!(&captured_brackets);
+        dbg!(&captured_brackets);
         
         // println!("////////////////////////////");
 
@@ -303,8 +315,8 @@ mod tokenizer {
                 
             }
         }
-
         dbg!(&captured_brackets);
+
     }
 
     fn extract_tokens(char: char) -> Operator {
