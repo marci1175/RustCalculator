@@ -260,18 +260,23 @@ mod tokenizer {
                 
                 let mut temp_vec: Vec<Operator> = Vec::new();
 
-                for item in equation[left_index..equation.len() - 1].iter() {
-                    if *item == Operator::RBracket {
-                        captured_brackets.push(BracketItem::new(temp_vec.clone(), bracket_level_counter as usize));
-                        bracket_level_counter -= 1;
-                        break;
-                    }
-                    else if *item == Operator::LBracket {
-                        bracket_level_counter += 1;
-                    }
-                    else {
-                        temp_vec.push(item.clone())                        
-                    }
+                for item in equation[left_index..equation.len()].iter() {
+                    // if *item == Operator::RBracket  {
+                    //     bracket_level_counter -= 1;
+                    // }
+
+                    // if bracket_level_counter == right_bracket_counter {
+                    //     captured_brackets.push(BracketItem::new(temp_vec.clone(), bracket_level_counter as usize));
+                    //     break;
+                    // }
+
+                    // else {
+                    //     if *item == Operator::LBracket {
+                    //         bracket_level_counter += 1;
+                    //     }
+
+                    //     temp_vec.push(item.clone())                        
+                    // }
                 }
                 
             }
@@ -315,7 +320,6 @@ mod tokenizer {
                 
             }
         }
-        dbg!(&captured_brackets);
 
     }
 
