@@ -220,8 +220,6 @@ mod tokenizer {
         //This checks if the hierarchy should be reseted, im doing this because i cant set the usize to -1
         let mut bracket_level_counter: i32 = 0;
 
-        let mut right_bracket_counter: i32 = 0;
-
         let mut captured_brackets: Vec<BracketItem> = Vec::new();
 
         //123+(124142-123(123))
@@ -232,9 +230,6 @@ mod tokenizer {
 
         for (left_index, left_item) in equation.iter().enumerate() {
             if *left_item == Operator::LBracket {
-                //Reset right bracket counter
-                right_bracket_counter = 0;
-
                 bracket_level_counter = 0;
 
                 //Search for the Eq closeure => ")", we assume the input is correct
@@ -260,66 +255,68 @@ mod tokenizer {
                 
                 let mut temp_vec: Vec<Operator> = Vec::new();
 
-                for item in equation[left_index..equation.len()].iter() {
-                    // if *item == Operator::RBracket  {
-                    //     bracket_level_counter -= 1;
-                    // }
+                for item in equation[left_index + 1..equation.len()].iter() {
 
-                    // if bracket_level_counter == right_bracket_counter {
-                    //     captured_brackets.push(BracketItem::new(temp_vec.clone(), bracket_level_counter as usize));
-                    //     break;
-                    // }
+                    if bracket_level_counter == 0 && *item == Operator::RBracket {
+                        captured_brackets.push(BracketItem::new(temp_vec.clone(), bracket_level_counter as usize));
+                        break;
+                    }
 
-                    // else {
-                    //     if *item == Operator::LBracket {
-                    //         bracket_level_counter += 1;
-                    //     }
+                    if *item == Operator::LBracket {
+                        bracket_level_counter += 1;
+                    }
 
-                    //     temp_vec.push(item.clone())                        
-                    // }
+                    //Check for right brackets
+                    if *item == Operator::RBracket  {
+                        bracket_level_counter -= 1;
+                    }
+
+                    temp_vec.push(item.clone()); 
                 }
-                
+
+                // dbg!(&captured_brackets);
             }
         }
 
-        dbg!(&captured_brackets);
-        
         // println!("////////////////////////////");
 
-        //Iterate over captures, reverse
-        for (index, bracket_item) in captured_brackets.clone().iter().enumerate().rev() {
-            if index > 0 {
-                loop {
-                    //Convert Bracketitem to Vec<Operator>
-                    let bracket_item_as_vec = Into::<Vec<Operator>>::into(bracket_item);
-                    //Get the position of the first occurence, we can use .unwrap() because it MUST be found
-                    let occurence_pos = captured_brackets[index - 1]
-                        .inner_equation
-                        .windows({let bracket_item: Vec<Operator> = bracket_item.into(); bracket_item}.len())
-                        .position(|pos| pos == bracket_item_as_vec.clone());
+        // Iterate over captures, reverse
+        //captured_brackets[0] is the main one containing all in unedited form
 
-                    if let Some(occurence_index) = occurence_pos {
+        for (index, bracket_item) in captured_brackets.clone().iter().enumerate().skip(1) {
+            loop {
+                //Convert Bracketitem to Vec<Operator>
+                let bracket_item_as_vec = Into::<Vec<Operator>>::into(bracket_item);
 
-                        let range = occurence_index..occurence_index + bracket_item_as_vec.len();
+                dbg!(&captured_brackets[0], index);
 
-                        captured_brackets[index - 1].inner_equation.drain(range);
+                //Get the position of the first occurence, we can use .unwrap() because it MUST be found
+                let occurence_pos = captured_brackets[0]
+                    .inner_equation
+                    .windows({let bracket_item: Vec<Operator> = bracket_item.into(); bracket_item}.len())
+                    .position(|vector_window| vector_window == bracket_item_as_vec);
 
-                        //Last bracket, this is what will get inserted to the current equation's brackets
-                        /* Because:
-                            We have captured all brackets, so we know we wont make the wrong index
-                        */
-                        let last_bracket = captured_brackets[index].clone();
+                if let Some(occurence_index) = occurence_pos {
 
-                        captured_brackets[index - 1].inner_equation.insert(occurence_index, Operator::BracketItem(BracketItem::new(last_bracket.inner_equation, last_bracket.level)));
+                    let range = occurence_index..occurence_index + bracket_item_as_vec.len();
 
-                    }
-                    else {
-                        break
-                    }
+                    captured_brackets[0].inner_equation.drain(range);
+
+                    //Last bracket, this is what will get inserted to the current equation's brackets
+                    /* Because:
+                        We have captured all brackets, so we know we wont make the wrong index
+                    */
+                    //34.0_f32).powf(2.0)
+                    captured_brackets[0].inner_equation.insert(occurence_index, Operator::BracketItem(BracketItem::new(bracket_item.inner_equation.clone(), bracket_item.level)));
+
                 }
-                
+                else {
+                    break
+                }
             }
         }
+
+        
 
     }
 
