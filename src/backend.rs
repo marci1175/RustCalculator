@@ -145,7 +145,7 @@ impl From<&BracketItem> for Vec<Operator> {
 }
 
 mod tokenizer {
-    use std::ops::{RangeBounds, RangeInclusive};
+    use std::{ops::{RangeBounds, RangeInclusive}, ptr::eq};
 
     use crate::backend::{BracketItem, LeftBracket, RightBracket};
 
@@ -216,43 +216,25 @@ mod tokenizer {
         final_list
     }
 
-    pub(crate) fn sort(equation: Vec<Operator>) {
+    pub(crate) fn sort(mut equation: Vec<Operator>) -> Vec<Operator> {
+
+        let captured_brackets = filter_brackets(&equation);
+
+        modify_equation(captured_brackets, &mut equation)
+
+    }
+
+    fn filter_brackets(equation: &Vec<Operator>) -> Vec<BracketItem> {
         //This checks if the hierarchy should be reseted, im doing this because i cant set the usize to -1
         let mut bracket_level_counter: i32 = 0;
 
         let mut captured_brackets: Vec<BracketItem> = Vec::new();
 
-        //123+(124142-123(123))
-
-        //1 + (2) + (3)
-
         //bracket_level _ocunter is used for cehcking the brackets level (this is a note to self, this is obvious)
-
         for (left_index, left_item) in equation.iter().enumerate() {
             if *left_item == Operator::LBracket {
                 bracket_level_counter = 0;
-
-                //Search for the Eq closeure => ")", we assume the input is correct
-                // for (right_index, right_item) in equation.iter().enumerate().rev() {
-                //     //Found it! :)
-                //     if *right_item == Operator::RBracket {
-                //         //Check for bracket level
-                //         if right_bracket_counter == bracket_level_counter {
-                //             //Leave out the ( and )s
-                //             let capture = BracketItem::new(
-                //                 equation[left_index + 1..=right_index - 1]
-                //                     .iter()
-                //                     .cloned()
-                //                     .collect::<Vec<_>>(),
-                //                 bracket_level_counter as usize,
-                //             );
-                //             captured_brackets.push(capture);
-                //         }
-                //         //Increase bracket level counter
-                //         right_bracket_counter += 1;
-                //     }
-                // }
-                
+        
                 let mut temp_vec: Vec<Operator> = Vec::new();
 
                 for item in equation[left_index + 1..equation.len()].iter() {
@@ -266,7 +248,6 @@ mod tokenizer {
                         bracket_level_counter += 1;
                     }
 
-                    //Check for right brackets
                     if *item == Operator::RBracket  {
                         bracket_level_counter -= 1;
                     }
@@ -274,50 +255,68 @@ mod tokenizer {
                     temp_vec.push(item.clone()); 
                 }
 
-                // dbg!(&captured_brackets);
             }
         }
+        captured_brackets
+    }
 
-        // println!("////////////////////////////");
+    // Iterate over captures
+    //captured_brackets[0] is the main one containing all in unedited form
+    fn modify_equation(captured_brackets: Vec<BracketItem>, mut equation: &mut Vec<Operator>) -> Vec<Operator> {
+        for (index, bracket_item) in captured_brackets.clone().iter().enumerate() {
 
-        // Iterate over captures, reverse
-        //captured_brackets[0] is the main one containing all in unedited form
+            //Convert Bracketitem to Vec<Operator>
+            let bracket_item_as_vec = Into::<Vec<Operator>>::into(bracket_item);
 
-        for (index, bracket_item) in captured_brackets.clone().iter().enumerate().skip(1) {
-            loop {
-                //Convert Bracketitem to Vec<Operator>
-                let bracket_item_as_vec = Into::<Vec<Operator>>::into(bracket_item);
+            // dbg!(&captured_brackets[0], index, captured_brackets.len() - 1);
 
-                dbg!(&captured_brackets[0], index);
+            //Get the position of the first occurence, we can use .unwrap() because it MUST be found
+            let occurence_pos = equation
+                .windows({let bracket_item: Vec<Operator> = bracket_item.into(); bracket_item}.len())
+                .position(|vector_window| vector_window == bracket_item_as_vec);
 
-                //Get the position of the first occurence, we can use .unwrap() because it MUST be found
-                let occurence_pos = captured_brackets[0]
-                    .inner_equation
-                    .windows({let bracket_item: Vec<Operator> = bracket_item.into(); bracket_item}.len())
-                    .position(|vector_window| vector_window == bracket_item_as_vec);
+            if let Some(occurence_index) = occurence_pos {
 
-                if let Some(occurence_index) = occurence_pos {
+                let range = occurence_index..occurence_index + bracket_item_as_vec.len();
 
-                    let range = occurence_index..occurence_index + bracket_item_as_vec.len();
+                equation.drain(range);
 
-                    captured_brackets[0].inner_equation.drain(range);
+                //Last bracket, this is what will get inserted to the current equation's brackets
+                /* Because:
+                    We have captured all brackets, so we know we wont make the wrong index
+                */
 
-                    //Last bracket, this is what will get inserted to the current equation's brackets
-                    /* Because:
-                        We have captured all brackets, so we know we wont make the wrong index
-                    */
-                    //34.0_f32).powf(2.0)
-                    captured_brackets[0].inner_equation.insert(occurence_index, Operator::BracketItem(BracketItem::new(bracket_item.inner_equation.clone(), bracket_item.level)));
-
-                }
-                else {
-                    break
-                }
-            }
-        }
+                //(34.0_f32).powf(2.0)
+        
+                equation.insert(occurence_index, Operator::BracketItem(BracketItem::new(bracket_item.inner_equation.clone(), bracket_item.level)));
 
         
+            }
+            else {
+                for equation_item in equation.iter_mut() {
+                    if let Operator::BracketItem(bracket_item_contains) = equation_item {
 
+                        for element in  bracket_item_contains.inner_equation.iter() {
+                            if matches!(*element, Operator::BracketItem(_)) {
+                                let scope = sort(bracket_item_contains.inner_equation.clone());
+                            }
+                        };
+                        
+                        if let Some(pos) = bracket_item_contains.inner_equation.windows(bracket_item_as_vec.len()).position(|vector_window| vector_window == bracket_item_as_vec) {
+                            let range = pos..(pos + bracket_item_as_vec.len());
+
+                            bracket_item_contains.inner_equation.drain(range);
+
+                            bracket_item_contains.inner_equation.insert(pos, Operator::BracketItem(BracketItem::new(bracket_item.inner_equation.clone(), bracket_item.level)));
+                        };
+
+                    }
+                };
+            }
+
+        }
+
+        equation.clone()
     }
 
     fn extract_tokens(char: char) -> Operator {
