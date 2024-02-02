@@ -26,8 +26,6 @@ pub enum Operator {
     BracketItem(BracketItem),
 }
 
-impl Operator {}
-
 pub struct Calculator {
     //User input, this should be static
     input: String,
@@ -117,13 +115,13 @@ pub struct BracketItem {
     inner_equation: Vec<Operator>,
 }
 
-// impl Iterator for BracketItem {
-//     type Item = Operator;
+impl Iterator for BracketItem {
+    type Item = Operator;
 
-//     fn next(&mut self) -> Option<Self::Item> {
-//         self.inner_equation.iter().next().cloned()
-//     }
-// }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner_equation.iter().next().cloned()
+    }
+}
 
 impl BracketItem {
     fn new(equation: Vec<Operator>, equation_level: usize) -> Self {
@@ -145,9 +143,7 @@ impl From<&BracketItem> for Vec<Operator> {
 }
 
 mod tokenizer {
-    use std::{ops::{RangeBounds, RangeInclusive}, ptr::eq};
-
-    use crate::backend::{BracketItem, LeftBracket, RightBracket};
+    use crate::backend::BracketItem;
 
     use super::Operator;
 
@@ -296,9 +292,23 @@ mod tokenizer {
                 for equation_item in equation.iter_mut() {
                     if let Operator::BracketItem(bracket_item_contains) = equation_item {
 
+
                         for element in  bracket_item_contains.inner_equation.iter() {
                             if matches!(*element, Operator::BracketItem(_)) {
-                                let scope = sort(bracket_item_contains.inner_equation.clone());
+                                let mut scope = sort(bracket_item_contains.inner_equation.clone());
+
+                                loop {
+                                    for item in scope.clone() {
+                                        if matches!(item, Operator::BracketItem(_)) {
+                                            scope = sort(scope);
+
+                                            break;
+                                        }
+                                    }
+
+                                }
+
+                                dbg!(scope);
                             }
                         };
                         
