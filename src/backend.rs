@@ -227,7 +227,7 @@ mod tokenizer {
         captured_brackets: Vec<BracketItem>,
         equation: &mut Vec<Operator>,
     ) -> &mut Vec<Operator> {
-        for (index, bracket_item) in captured_brackets.clone().iter().enumerate() {
+        for bracket_item in captured_brackets.iter() {
             //Convert Bracketitem to Vec<Operator>
             let bracket_item_as_vec = Into::<Vec<Operator>>::into(bracket_item);
 
@@ -258,7 +258,7 @@ mod tokenizer {
             }
             //Occurence not found
             else {
-                //Search if there is A BracketItem we could iterate over, because it doesnt iter over BracketItem's by default
+                //Search if there is A BracketItem we could iterate over, because it doesnt iter over BracketItem's by default, do iter_mut so we can grant mutability
                 for equation_item in equation.iter_mut() {
                     //Bracket found
                     if let Operator::BracketItem(bracket_item_contains) = dbg!(equation_item) {
