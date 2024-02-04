@@ -1,5 +1,5 @@
 use std::fmt::Display;
-
+//(34.0_f32).powf(2.0)
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
     ///+
@@ -87,46 +87,14 @@ trait Expr {
     fn div(rhs: f64, lhs: f64) -> f64;
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct LeftBracket {
-    level: usize,
-}
-
-impl LeftBracket {
-    fn new(level: usize) -> Self {
-        Self { level }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RightBracket {
-    level: usize,
-}
-
-impl RightBracket {
-    fn new(level: usize) -> Self {
-        Self { level }
-    }
-}
-
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct BracketItem {
-    level: usize,
     inner_equation: Vec<Operator>,
 }
 
-impl Iterator for BracketItem {
-    type Item = Operator;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner_equation.iter().next().cloned()
-    }
-}
-
 impl BracketItem {
-    fn new(equation: Vec<Operator>, equation_level: usize) -> Self {
+    fn new(equation: Vec<Operator>) -> Self {
         BracketItem {
-            level: equation_level,
             inner_equation: equation,
         }
     }
@@ -143,6 +111,8 @@ impl From<&BracketItem> for Vec<Operator> {
 }
 
 mod tokenizer {
+    use std::ops::Deref;
+
     use crate::backend::BracketItem;
 
     use super::Operator;
@@ -207,17 +177,14 @@ mod tokenizer {
             final_list.push(Operator::Num(current_number.parse().unwrap()));
         }
 
-        sort(final_list.clone());
+        parse(&mut final_list.clone());
 
         final_list
     }
 
-    pub(crate) fn sort(mut equation: Vec<Operator>) -> Vec<Operator> {
-
-        let captured_brackets = filter_brackets(&equation);
-
-        modify_equation(captured_brackets, &mut equation)
-
+    //Blanket function used to Parse all incoming tokenized data, return &mut so we can start calculating, and there is no need to clone
+    pub(crate) fn parse(equation: &mut Vec<Operator>) -> &mut Vec<Operator> {
+        modify_equation(filter_brackets(equation), equation)
     }
 
     fn filter_brackets(equation: &Vec<Operator>) -> Vec<BracketItem> {
@@ -230,13 +197,12 @@ mod tokenizer {
         for (left_index, left_item) in equation.iter().enumerate() {
             if *left_item == Operator::LBracket {
                 bracket_level_counter = 0;
-        
+
                 let mut temp_vec: Vec<Operator> = Vec::new();
 
                 for item in equation[left_index + 1..equation.len()].iter() {
-
                     if bracket_level_counter == 0 && *item == Operator::RBracket {
-                        captured_brackets.push(BracketItem::new(temp_vec.clone(), bracket_level_counter as usize));
+                        captured_brackets.push(BracketItem::new(temp_vec));
                         break;
                     }
 
@@ -244,13 +210,12 @@ mod tokenizer {
                         bracket_level_counter += 1;
                     }
 
-                    if *item == Operator::RBracket  {
+                    if *item == Operator::RBracket {
                         bracket_level_counter -= 1;
                     }
 
-                    temp_vec.push(item.clone()); 
+                    temp_vec.push(item.clone());
                 }
-
             }
         }
         captured_brackets
@@ -258,23 +223,26 @@ mod tokenizer {
 
     // Iterate over captures
     //captured_brackets[0] is the main one containing all in unedited form
-    fn modify_equation(captured_brackets: Vec<BracketItem>, mut equation: &mut Vec<Operator>) -> Vec<Operator> {
+    fn modify_equation(
+        captured_brackets: Vec<BracketItem>,
+        equation: &mut Vec<Operator>,
+    ) -> &mut Vec<Operator> {
         for (index, bracket_item) in captured_brackets.clone().iter().enumerate() {
-
             //Convert Bracketitem to Vec<Operator>
             let bracket_item_as_vec = Into::<Vec<Operator>>::into(bracket_item);
 
-            // dbg!(&captured_brackets[0], index, captured_brackets.len() - 1);
-
-            //Get the position of the first occurence, we can use .unwrap() because it MUST be found
+            //Get the position of the first occurence, which will be replaced
+            //Search in the vector
             let occurence_pos = equation
-                .windows({let bracket_item: Vec<Operator> = bracket_item.into(); bracket_item}.len())
-                .position(|vector_window| vector_window == bracket_item_as_vec);
+                .windows(bracket_item_as_vec.len() /* Use the current bracket_item (from the extracted bracket items), and convert it to a Vec, so it can be searched with */)
+                .position(|vector_window| vector_window == bracket_item_as_vec /* If the current BracketItem (as vec) can be found in the main equation reutrn Some(Index of occurence) */);
 
+            //Occurence found
             if let Some(occurence_index) = occurence_pos {
-
+                //Define range from: affected vector's starting point to its end point
                 let range = occurence_index..occurence_index + bracket_item_as_vec.len();
 
+                //drain the parts of the vetor, which will be replaced
                 equation.drain(range);
 
                 //Last bracket, this is what will get inserted to the current equation's brackets
@@ -282,51 +250,30 @@ mod tokenizer {
                     We have captured all brackets, so we know we wont make the wrong index
                 */
 
-                //(34.0_f32).powf(2.0)
-        
-                equation.insert(occurence_index, Operator::BracketItem(BracketItem::new(bracket_item.inner_equation.clone(), bracket_item.level)));
-
-        
+                //Insert InnerEquation to the deleted one's place
+                equation.insert(
+                    occurence_index,
+                    Operator::BracketItem(BracketItem::new(bracket_item.inner_equation.clone())),
+                );
             }
+            //Occurence not found
             else {
+                //Search if there is A BracketItem we could iterate over, because it doesnt iter over BracketItem's by default
                 for equation_item in equation.iter_mut() {
-                    if let Operator::BracketItem(bracket_item_contains) = equation_item {
-
-
-                        for element in  bracket_item_contains.inner_equation.iter() {
-                            if matches!(*element, Operator::BracketItem(_)) {
-                                let mut scope = sort(bracket_item_contains.inner_equation.clone());
-
-                                loop {
-                                    for item in scope.clone() {
-                                        if matches!(item, Operator::BracketItem(_)) {
-                                            scope = sort(scope);
-
-                                            break;
-                                        }
-                                    }
-
-                                }
-
-                                dbg!(scope);
-                            }
-                        };
-                        
-                        if let Some(pos) = bracket_item_contains.inner_equation.windows(bracket_item_as_vec.len()).position(|vector_window| vector_window == bracket_item_as_vec) {
-                            let range = pos..(pos + bracket_item_as_vec.len());
-
-                            bracket_item_contains.inner_equation.drain(range);
-
-                            bracket_item_contains.inner_equation.insert(pos, Operator::BracketItem(BracketItem::new(bracket_item.inner_equation.clone(), bracket_item.level)));
-                        };
-
+                    //Bracket found
+                    if let Operator::BracketItem(bracket_item_contains) = dbg!(equation_item) {
+                        /*
+                        Grant mutability and || DONT CLONE ||, so itll be able to modify the original equation
+                        This recursion method will also always bring the equation into "scope", therefor this is a pretty good way
+                        */
+                        parse(&mut bracket_item_contains.inner_equation);
                     }
-                };
+                }
             }
-
         }
 
-        equation.clone()
+        //Return modified equation
+        equation
     }
 
     fn extract_tokens(char: char) -> Operator {
