@@ -51,6 +51,9 @@ impl Calculator {
     fn main(&mut self) {
         //Tokenize
         self.tokenizer();
+        
+        //parse
+        self.parse();
 
         println!("{self}");
     }
@@ -58,6 +61,10 @@ impl Calculator {
     fn tokenizer(&mut self) {
         //Set memory
         self.memory = Some(tokenizer::tokenize(self.input.clone()));
+    }
+
+    fn parse(&mut self) {
+        self.memory = Some(tokenizer::parse(&mut self.memory.clone().unwrap()).to_vec());
     }
 }
 
@@ -74,6 +81,9 @@ impl Expr for Calculator {
     fn sub(rhs: f64, lhs: f64) -> f64 {
         rhs / lhs
     }
+    fn pow(rhs: f64, lhs: f64) -> f64 {
+        rhs.powf(lhs)
+    }
 }
 impl Display for Calculator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -85,6 +95,7 @@ trait Expr {
     fn sub(rhs: f64, lhs: f64) -> f64;
     fn multip(rhs: f64, lhs: f64) -> f64;
     fn div(rhs: f64, lhs: f64) -> f64;
+    fn pow(rhs: f64, lhs: f64) -> f64;
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -111,8 +122,6 @@ impl From<&BracketItem> for Vec<Operator> {
 }
 
 mod tokenizer {
-    use std::ops::Deref;
-
     use crate::backend::BracketItem;
 
     use super::Operator;
