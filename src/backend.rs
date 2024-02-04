@@ -1,3 +1,4 @@
+use core::panic;
 use std::fmt::Display;
 //(34.0_f32).powf(2.0)
 #[derive(Debug, PartialEq, Clone)]
@@ -26,11 +27,29 @@ pub enum Operator {
     BracketItem(BracketItem),
 }
 
+impl Display for Operator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Operator::Addition => write!(f, "Addition"),
+            Operator::Subtraction => write!(f, "Subtraction"),
+            Operator::Multiplication => write!(f, "Multiplication"),
+            Operator::Division => write!(f, "Division"),
+            Operator::LBracket => write!(f, "LBracket"),
+            Operator::RBracket => write!(f, "RBracket"),
+            Operator::Num(inner_num) => write!(f, "Num({})", inner_num),
+            Operator::BracketItem(inner_eq) => write!(f, "BracketItem({:?})", inner_eq.inner_equation),
+        }
+    }
+}
+
 pub struct Calculator {
     //User input, this should be static
     input: String,
 
     memory: Option<Vec<Operator>>,
+
+    //answer
+    answ: f64,
 }
 
 impl Calculator {
@@ -45,6 +64,7 @@ impl Calculator {
         Calculator {
             input: user_input,
             memory: None, /*Init mem with none*/
+            answ: 0.0,
         }
     }
 
@@ -55,20 +75,27 @@ impl Calculator {
         //parse
         self.parse();
 
+        //calculate
+        self.calculate();
+
         println!("{self}");
     }
 
     fn tokenizer(&mut self) {
         //Set memory
-        self.memory = Some(tokenizer::tokenize(self.input.clone()));
+        self.memory = Some(parser::tokenize(self.input.clone()));
     }
 
     fn parse(&mut self) {
-        self.memory = Some(tokenizer::parse(&mut self.memory.clone().unwrap()).to_vec());
+        self.memory = Some(parser::parse(&mut self.memory.clone().unwrap()).clone());
+    }
+
+    fn calculate(&mut self) {
+        self.answ = calculator_engine::calculate(&mut self.memory.clone().unwrap());
     }
 }
 
-impl Expr for Calculator {
+impl Expr for Operator {
     fn add(rhs: f64, lhs: f64) -> f64 {
         rhs + lhs
     }
@@ -85,11 +112,13 @@ impl Expr for Calculator {
         rhs.powf(lhs)
     }
 }
+
 impl Display for Calculator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("Input: {}\nMemory: {:?}", self.input, self.memory))
+        f.write_str(&format!("Input: {}\nMemory: {:?}\nResult: {}", self.input, self.memory, self.answ))
     }
 }
+
 trait Expr {
     fn add(rhs: f64, lhs: f64) -> f64;
     fn sub(rhs: f64, lhs: f64) -> f64;
@@ -121,10 +150,8 @@ impl From<&BracketItem> for Vec<Operator> {
     }
 }
 
-mod tokenizer {
-    use crate::backend::BracketItem;
-
-    use super::Operator;
+mod parser {
+    use {crate::backend::BracketItem, super::Operator};
 
     pub(crate) fn tokenize(string: String) -> Vec<Operator> {
         let mut final_list: Vec<Operator> = Vec::new();
@@ -229,7 +256,7 @@ mod tokenizer {
         }
         captured_brackets
     }
-
+    
     // Iterate over captures
     //captured_brackets[0] is the main one containing all in unedited form
     fn modify_equation(
@@ -270,7 +297,7 @@ mod tokenizer {
                 //Search if there is A BracketItem we could iterate over, because it doesnt iter over BracketItem's by default, do iter_mut so we can grant mutability
                 for equation_item in equation.iter_mut() {
                     //Bracket found
-                    if let Operator::BracketItem(bracket_item_contains) = dbg!(equation_item) {
+                    if let Operator::BracketItem(bracket_item_contains) = equation_item {
                         /*
                         Grant mutability and || DONT CLONE ||, so itll be able to modify the original equation
                         This recursion method will also always bring the equation into "scope", therefor this is a pretty good way
@@ -297,5 +324,81 @@ mod tokenizer {
             '(' => LBracket,
             _ => panic!("You fucked up lil bro, spread them cheeks! {}", char),
         }
+    }
+}
+
+mod calculator_engine {
+    use super::{Operator, Expr};
+    pub(crate) fn calculate(equation: &mut Vec<Operator>) -> f64 {
+        let result = calculator(equation);
+
+        #[cfg(not(debug_assertions))]
+        {
+            if result.len() > 1 {
+                panic!("Invalid equation was entered, couldnt finish equation");
+            }
+        }
+
+        if let Operator::Num(number) = dbg!(result)[0] {
+            return number;
+        }
+        else {
+            panic!("Invalid equation was entered, couldnt finish equation");
+        }
+    }
+
+    fn calculator(equation: &mut Vec<Operator>) -> &mut Vec<Operator> {
+        //Loop this way, so i can pass in &mut without any cloning
+        let mut index = 0;
+        // First check for * and /
+        while index < equation.len() {
+            //Handle *
+            if equation[index] == Operator::Multiplication {
+                let left_operand = match &mut equation[index - 1] {
+                    Operator::Num(inner_num) => *inner_num,
+                    Operator::BracketItem(inner_bracket) => calculate(&mut inner_bracket.inner_equation),
+                    _ => unimplemented!(),
+                };
+    
+                let right_operand = match &mut equation[index + 1] {
+                    Operator::Num(inner_num) => *inner_num,
+                    Operator::BracketItem(inner_bracket) => calculate(&mut inner_bracket.inner_equation),
+                    _ => unimplemented!(),
+                };
+    
+                let result = Operator::multip(left_operand, right_operand);
+
+                //drain vector on a specific place
+                let range = index - 1..=index + 1;
+                equation.drain(range);
+
+                equation.insert(index + 1, Operator::Num(result));
+            } //Handle : 
+            else if equation[index] == Operator::Division {
+                let left_operand = match &mut equation[index - 1] {
+                    Operator::Num(inner_num) => *inner_num,
+                    Operator::BracketItem(inner_bracket) => calculate(&mut inner_bracket.inner_equation),
+                    _ => unimplemented!(),
+                };
+    
+                let right_operand = match &mut equation[index + 1] {
+                    Operator::Num(inner_num) => *inner_num,
+                    Operator::BracketItem(inner_bracket) => calculate(&mut inner_bracket.inner_equation),
+                    _ => unimplemented!(),
+                };
+    
+                let result = Operator::div(left_operand, right_operand);
+
+                //drain vector on a specific place
+                let range = index - 1..=index + 1;
+                equation.drain(range);
+
+                equation.insert(index - 1, Operator::Num(result));
+            }
+    
+            index += 1;
+        }
+
+        equation
     }
 }
