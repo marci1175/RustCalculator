@@ -22,5 +22,5 @@ fn main() {
         }
     }
 
-    Calculator::init("9 / 3 / 3");
+    Calculator::init("9 * 2 / (3 / 3)");
 }

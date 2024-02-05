@@ -99,13 +99,13 @@ impl Expr for Operator {
     fn add(rhs: f64, lhs: f64) -> f64 {
         rhs + lhs
     }
-    fn div(rhs: f64, lhs: f64) -> f64 {
+    fn sub(rhs: f64, lhs: f64) -> f64 {
         rhs - lhs
     }
     fn multip(rhs: f64, lhs: f64) -> f64 {
         rhs * lhs
     }
-    fn sub(rhs: f64, lhs: f64) -> f64 {
+    fn div(rhs: f64, lhs: f64) -> f64 {
         rhs / lhs
     }
     fn pow(rhs: f64, lhs: f64) -> f64 {
@@ -339,7 +339,7 @@ mod calculator_engine {
             }
         }
 
-        if let Operator::Num(number) = dbg!(result)[0] {
+        if let Operator::Num(number) = result[0] {
             return number;
         }
         else {
@@ -352,6 +352,13 @@ mod calculator_engine {
         let mut index = 0;
         // First check for * and /
         while index < equation.len() {
+
+            //dbg
+            #[cfg(debug_assertions)]
+            {
+                dbg!(equation.clone());
+            }
+
             //Handle *
             if equation[index] == Operator::Multiplication {
                 let left_operand = match &mut equation[index - 1] {
@@ -372,7 +379,9 @@ mod calculator_engine {
                 let range = index - 1..=index + 1;
                 equation.drain(range);
 
-                equation.insert(index + 1, Operator::Num(result));
+                equation.insert(index - 1, Operator::Num(result));
+
+                index = 0;
             } //Handle : 
             else if equation[index] == Operator::Division {
                 let left_operand = match &mut equation[index - 1] {
@@ -394,6 +403,8 @@ mod calculator_engine {
                 equation.drain(range);
 
                 equation.insert(index - 1, Operator::Num(result));
+
+                index = 0;
             }
     
             index += 1;
