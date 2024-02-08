@@ -322,7 +322,7 @@ mod parser {
     }
 
     fn extract_tokens(char: char) -> Operator {
-        use Operator::{Addition, Division, LBracket, Multiplication, RBracket, Subtraction};
+        use Operator::{Power, Addition, Division, LBracket, Multiplication, RBracket, Subtraction};
 
         match char {
             '+' => Addition,
@@ -331,6 +331,7 @@ mod parser {
             '/' => Division,
             ')' => RBracket,
             '(' => LBracket,
+            '^' => Power,
             _ => panic!("You fucked up lil bro, spread them cheeks! {}", char),
         }
     }
