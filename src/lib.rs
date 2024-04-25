@@ -36,15 +36,19 @@ struct CalculatorError {
 
 impl Display for CalculatorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            &format!("Error type: {}, Index: {}", self.err_type, self.index)
-        )
+        f.write_str(&format!(
+            "Error type: {}, Index: {}",
+            self.err_type, self.index
+        ))
     }
 }
 
 impl CalculatorError {
     fn new(error_type: CalculatorErrorType, index: usize) -> Self {
-        Self { err_type: error_type, index }
+        Self {
+            err_type: error_type,
+            index,
+        }
     }
 
     fn show_error(&self, erroring_input: &str) {
@@ -66,6 +70,8 @@ enum CalculatorErrorType {
     ParseError,
     #[error("Error occured while calculating the equation")]
     CalculationError,
+    #[error("The equation contains invalid formatting, for example brackets left open")]
+    SyntaxError,
 }
 
 impl Calculator {
@@ -75,20 +81,24 @@ impl Calculator {
         }
     }
 
-    pub fn input(&mut self, input: String) -> Result<f64> {
-        
+    pub fn calculate(&mut self, input: String) -> Result<f64> {
         let formatted_calculation = input.trim().replace(" ", "");
-        
+
+        let _ = Self::calculate_equation(formatted_calculation).inspect_err(|e| {
+            e.downcast_ref::<CalculatorError>()
+                .unwrap()
+                .show_error(&input);
+        });
+
+        todo!()
+    }
+
+    fn calculate_equation(formatted_calculation: String) -> Result<f64> {
         //Tokenize
-        match tokenize(formatted_calculation.clone()) {
-            Ok(output) => {
-                dbg!(output);
-            },
-            Err(error) => {
-                //Downcast to original type (We know its type)
-                error.downcast::<CalculatorError>().unwrap().show_error(&input);
-            }
-        };
+        let mut token_list = tokenize(formatted_calculation.clone())?;
+
+        //Parse list, i.e introduce bracket items
+        let parsed_list = parse(&mut token_list)?;
 
         todo!()
     }
@@ -130,30 +140,51 @@ fn tokenize(input: String) -> Result<Vec<Expression>> {
     Ok(final_list)
 }
 
+/// Insert additional data for example () * <-- () and BracketItems
+fn parse(input: &mut Vec<Expression>) -> Result<()> {
+    
+    //'Format' the input (We are just making out job easier down the road by inserting expressions)
+    parse_expressions(input)?;
+
+    //Parse brackets, insert BracketItems, delete all of the Lbrackets and Rbrackets
+    parse_brackets(input)?;
+
+    Ok(())
+}
+
+fn parse_expressions(input: &mut Vec<Expression>) -> Result<()> {
+    Ok(())
+}
+
+fn parse_brackets(input: &mut Vec<Expression>) -> Result<()> {
+    let mut current_bracket_level = 0;
+
+    for (index, item) in input.iter_mut().enumerate() {
+        //If LeftBracket is detected, increase bracket lvl by 1
+        if matches!(item, Expression::LeftBracket) {
+            current_bracket_level += 1;
+        }
+        //If LeftBracket is detected, decrease bracket lvl by 1
+        else if matches!(item, Expression::RightBracket) {
+            current_bracket_level -= 1;
+        }
+
+        //If current_bracket_level == 0 that means the initial bracket is closed
+    }
+
+    Ok(())
+}
+
 fn match_foreign_char(foreign_char: char, index: usize) -> Result<Expression> {
-    //We dont wrap it into an Ok(_) because it could be an invalid cahr 
+    //We dont wrap it into an Ok(_) because it could be an invalid cahr
     let expression = match foreign_char {
-        '+' => {
-            Expression::Addition
-        }
-        '-' => {
-            Expression::Addition
-        }
-        '/' | '%' => {
-            Expression::Addition
-        }
-        '*' => {
-            Expression::Addition
-        }
-        '^' => {
-            Expression::Power
-        }
-        ')' => {
-            Expression::RightBracket
-        }
-        '(' => {
-            Expression::LeftBracket
-        }
+        '+' => Expression::Addition,
+        '-' => Expression::Addition,
+        '/' | '%' => Expression::Addition,
+        '*' => Expression::Addition,
+        '^' => Expression::Power,
+        ')' => Expression::RightBracket,
+        '(' => Expression::LeftBracket,
         _ => {
             bail!(CalculatorError::new(CalculatorErrorType::ParseError, index))
         }

@@ -3,6 +3,11 @@ name = "calculator-recode"
 version = "0.1.0"
 edition = "2021"
 
+[[bench]]
+name = "calculator-benchmark"
+harness = false
+
 [dependencies]
 anyhow = "1.0.82"
+criterion = "0.5.1"
 thiserror = "1.0.59"
