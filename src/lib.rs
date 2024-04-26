@@ -3,7 +3,7 @@ use std::fmt::Display;
 use anyhow::{bail, Error, Result};
 use thiserror::Error;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum Expression {
     Addition,
     Subtraction,
@@ -153,6 +153,41 @@ fn parse(input: &mut Vec<Expression>) -> Result<()> {
 }
 
 fn parse_expressions(input: &mut Vec<Expression>) -> Result<()> {
+
+    //Last Expression we have iter-ed on
+    let mut last_expression: Option<Expression> = None;
+
+    //We need to clone so we can borrow as mutable later, this doesnt really affect us since we dont modify anything after the for index (Cloning is fine because the infromation will not change in a way which will impact us)
+    for (index, expression) in input.clone().iter().enumerate() {
+        //This will only get ran when the index is 1 (Because we need to set the last expr. in the first iteration)
+        //We should borrow as mutable so we can modify the variable without putting Some() everywhere
+        if let Some(last_expression) = last_expression.as_mut() {
+            match &expression {
+                Expression::LeftBracket => {
+
+                },
+                Expression::RightBracket => {
+                    
+                },
+                Expression::Number(_) => {
+                    //If the last_expression was ( or a ) we need to add a * fopr the caluclator to multiply it later (and not crash)
+                    if *last_expression == Expression::LeftBracket || *last_expression == Expression::RightBracket {
+                        input.insert(index, Expression::Multiplication);
+                    }
+                },
+    
+                _ => {}
+            }
+
+            //Save the last expression
+            *last_expression = expression.clone();
+        }
+        else {
+            //If there hasnt been any previous expressions then we can set the first one
+            last_expression = Some(expression.clone());
+        }
+    }
+
     Ok(())
 }
 
