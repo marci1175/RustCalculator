@@ -7,7 +7,9 @@ fn parsing_test() {
 }
 
 fn bench(c: &mut Criterion) {
-    c.bench_function("Calculation time", |function| function.iter(|| parsing_test()));
+    c.bench_function("Calculation time", |function| {
+        function.iter(|| parsing_test())
+    });
 }
 
 fn main() {
