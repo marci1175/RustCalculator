@@ -79,20 +79,19 @@ impl CalculatorError {
         //Print out the user input equation
         println!("[Error occured]\nEquation: \n{erroring_input}");
 
-        // ! Fix this logic cuz this does not work
-        let character_count = self.input.iter().take(self.index).map(|item| {
-            match item {
-                Expression::Number(inner) => {
-                    inner.to_string().len()
-                },
-                _ => 1,
-            }
-        }).sum();
-
-        //Move cursor to the error
-        for _ in 0..character_count {
-            print!(" ");
-        }
+        // // ! Fix this logic cuz this does not work
+        // let character_count = self.input.iter().take(self.index).map(|item| {
+        //     match item {
+        //         Expression::Number(inner) => {
+        //             inner.to_string().len()
+        //         },
+        //         _ => 1,
+        //     }
+        // }).sum();
+        // //Move cursor to the error
+        // for _ in 0..character_count {
+        //     print!(" ");
+        // }
 
         println!("^\nError: {}", self.err_type)
     }
@@ -130,7 +129,7 @@ impl Calculator {
         let token_list = tokenize(formatted_calculation.clone())?;
 
         //Parse list, i.e introduce bracket items
-        let parsed_list = parse(dbg!(token_list))?;
+        let parsed_list = parse(token_list)?;
 
         dbg!(parsed_list);
 
@@ -194,13 +193,16 @@ fn tokenize(input: String) -> Result<Vec<Expression>> {
 /// Insert additional data for example () * <-- () and BracketItems
 fn parse(input: Vec<Expression>) -> Result<Vec<Expression>> {
     //'Format' the input (We are just making out job easier down the road by inserting expressions)
-    let mut parsed_expression = parse_expressions(input)?;
+    let parsed_expression = parse_expressions(input)?;
 
-    //Parse brackets, insert BracketItems, delete all of the Lbrackets and Rbrackets
-    //I want to borrow as mut so we can call the function from itself, and still modify it
-    parse_brackets(&mut parsed_expression)?;
+    //Parse brackets, this vector only returns ```Expression::Brackets```
+    // let parsed_brackets = extract_brackets(parsed_expression.clone())?;
 
-    Ok(parsed_expression)
+    // let final_equation = modify_equation(parsed_brackets, parsed_expression)?;
+
+    todo!();
+
+    Ok(final_equation)
 }
 
 fn parse_expressions(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
@@ -246,14 +248,15 @@ fn parse_expressions(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
 }
 
 ///This function only moves the list of expressions contained by Lbracket and Rbracket into a ```Bracket(Vec<Expression>)```
-fn parse_brackets(input: &mut Vec<Expression>) -> Result<()> {
+fn extract_brackets(input: Vec<Expression>) -> Result<Vec<Expression>> {
     match (
         input.contains(&Expression::LeftBracket),
         input.contains(&Expression::RightBracket),
     ) {
         (true, true) => { /*Continue code excecution*/ }
         (false, false) => {
-            return Ok(());
+            //If there are no brackets present we can return the original list
+            return Ok(input);
         }
 
         _ => {
@@ -275,57 +278,86 @@ fn parse_brackets(input: &mut Vec<Expression>) -> Result<()> {
         }
     }
 
-    let mut current_bracket_level = 0;
+    //This checks if the hierarchy should be reseted, im doing this because i cant set the usize to -1
+    let mut bracket_level_counter: i32 = 0;
 
-    //This is only used for error displaying more specifically for displaying syntax errors, this is ued to show the last opened lbracket which is assumed to be left open
-    let mut last_lbracket_index = 0;
+    let mut captured_brackets: Vec<Expression> = Vec::new();
 
-    //This is where the __first__ ( ```Lbracket``` occured, so this is where we should start moving the equation into the bracket enum
-    let mut first_lbracket_occurence: Option<usize> = None;
-    
-    //We can clone here for the same reason as before
-    for (index, item) in input.clone().iter().enumerate() {
-        //If LeftBracket is detected, increase bracket lvl by 1
-        if matches!(item, Expression::LeftBracket) {
-            last_lbracket_index = index;
-            
-            first_lbracket_occurence = Some(index);
+    //bracket_level _ocunter is used for cehcking the brackets level (this is a note to self, this is obvious)
+    for (left_index, left_item) in input.iter().enumerate() {
+        if *left_item == Expression::LeftBracket {
+            let mut temp_vec: Vec<Expression> = Vec::new();
 
-            current_bracket_level += 1;
-        }
-        //If LeftBracket is detected, decrease bracket lvl by 1
-        else if matches!(item, Expression::RightBracket) {
-            current_bracket_level -= 1;
-        }
+            for item in input[left_index + 1..input.len()].iter() {
+                if bracket_level_counter == 0 && *item == Expression::RightBracket {
+                    captured_brackets.push(Expression::Brackets(temp_vec));
+                    break;
+                }
 
-        //Check if a bracket is being captured
-        if let Some(first_lbracket_occurence) = first_lbracket_occurence {
-            //If current_bracket_level == 0 that means the initial bracket is closed
-            //Move the inner equation to the Bracket(.  .  .)
-            if current_bracket_level == 0 {
-                //We use the ```first_lbracket_occurence``` and ```index``` to get the range we should be extracting
-                let extracted_eq = input[first_lbracket_occurence + 1..index].to_vec();
-                
-                dbg!(&input);
+                if *item == Expression::LeftBracket {
+                    bracket_level_counter += 1;
+                }
 
-                //Remove the values from the equation
-                input.drain(first_lbracket_occurence..index + 1);
+                if *item == Expression::RightBracket {
+                    bracket_level_counter -= 1;
+                }
 
-                //Insert new value
-                input.insert(first_lbracket_occurence, Expression::Brackets(extracted_eq));
+                temp_vec.push(item.clone());
             }
         }
-        
     }
 
-    if current_bracket_level != 0 {
-        //Implement getting valid index
-        bail!(CalculatorError::new(
-            CalculatorErrorType::SyntaxError,
-            last_lbracket_index,
-            input.clone()
-        ));
+    Ok(captured_brackets)
+}
+
+fn modify_equation(
+    captured_brackets: Vec<Expression>,
+    mut equation: Vec<Expression>,
+) -> Result<Vec<Expression>> {
+    for bracket_item in captured_brackets.iter() {
+        if let Expression::Brackets(brackets_inner_equation) = bracket_item {
+            //Get the position of the first occurence, which will be replaced
+            //Search in the vector
+            let occurence_pos = equation
+        .windows(brackets_inner_equation.len() /* Use the current bracket_item (from the extracted bracket items), and convert it to a Vec, so it can be searched with */)
+        .position(|vector_window| vector_window == brackets_inner_equation /* If the current BracketItem (as vec) can be found in the main equation reutrn Some(Index of occurence) */);
+
+            //Occurence found
+            if let Some(occurence_index) = occurence_pos {
+                //Define range from: affected vector's starting point to its end point
+                let range = occurence_index..occurence_index + brackets_inner_equation.len();
+
+                //drain the parts of the vetor, which will be replaced
+                equation.drain(range);
+
+                //Last bracket, this is what will get inserted to the current equation's brackets
+                /* Because:
+                    We have captured all brackets, so we know we wont make the wrong index
+                */
+
+                //Insert InnerEquation to the deleted one's place
+                equation.insert(
+                    occurence_index,
+                    Expression::Brackets(brackets_inner_equation.to_owned()),
+                );
+            }
+            //Occurence not found
+            else {
+                //Search if there is A BracketItem we could iterate over, because it doesnt iter over BracketItem's by default, do iter_mut so we can grant mutability
+                for equation_item in equation.iter_mut() {
+                    //Bracket found
+                    if let Expression::Brackets(bracket_item_contains) = equation_item {
+                        /*
+                        Grant mutability and || DONT CLONE ||, so itll be able to modify the original equation
+                        This recursion method will also always bring the equation into "scope", therefor this is a pretty good way
+                        */
+                        parse(bracket_item_contains.clone())?;
+                    }
+                }
+            }
+        }
     }
 
-    Ok(())
+    //Return modified equation
+    Ok(equation)
 }
