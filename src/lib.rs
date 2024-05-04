@@ -195,7 +195,108 @@ fn parse(input: Vec<Expression>) -> Result<Vec<Expression>> {
     //'Format' the input (We are just making out job easier down the road by inserting expressions)
     let parsed_expression = parse_expressions(input)?;
 
-    Ok(parsed_expression)
+    let parsed_brackets = parse_brackets(parsed_expression)?;
+
+    Ok(parsed_brackets)
+}
+
+fn parse_brackets(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
+    let mut loop_index = 0;
+
+    //This will count how deep are we in the brackets, which will become useful wehn we are dealing with nested brackets
+    let mut bracket_nest_level = 0;
+
+    let mut first_left_bracket_occurence = 0;
+
+    //This buffer is used to capture the inner equation of a future bracket (its not yet inserted)
+    let mut eq_buffer: Vec<Expression> = Vec::new();
+
+    'mainloop: while input.len() > loop_index {
+        let input_clone = input.clone();
+
+        //reset every temp* variable
+        eq_buffer.clear();
+
+        'nestedloop: for (index, item) in input_clone.iter().enumerate() {
+            // if *item == Expression::LeftBracket {
+            //     //Increase bracket level
+            //     bracket_nest_level += 1;
+            //     let inner = input_clone[/* We add one to the index since that index is where the first ( appreared */ index + 1..input.len()].iter().take_while(|p| **p != Expression::RightBracket).cloned().collect::<Vec<_>>();
+            //     dbg!(&input_clone);
+            //     //Get which index the RightBracket appeared at; 
+            //     // ! we sould add ```index``` whenever we are using it
+            //     let rbracket_index = dbg!(input_clone[index..input.len()].iter().position(|p| *p == Expression::RightBracket));
+            //     if let Some(rbracket_index) = rbracket_index {
+            //         //We can decrease the value of this variable
+            //         bracket_nest_level -= 1;
+            //         //If this is true then it means that the nested brackets are contained in this bracket; however the brackets still contain an unparsed list 
+            //         if bracket_nest_level == 0 {
+            //             input.drain(index..=rbracket_index + index);
+            //             //parse_brackets(inner)?
+            //             input.insert(index, Expression::Brackets(inner));
+            //             //Break out of the loop
+            //             break;
+            //         }
+            //     }
+            // else {
+            //     //Rbracket was not closed
+            //     bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, index, input));
+            // }
+
+            //We check bracket nestedness if its 0 we can modify the input replaing a certain range with a new Bracket item
+            match item {
+                Expression::LeftBracket => {
+
+                    //if bracket nestedness is 0 that means that this left bracket is the beginning of a new inner equation 
+                    if bracket_nest_level == 0 {
+                        //Set first* occurence
+                        first_left_bracket_occurence = index;
+
+                        //We can only increment this variable for obvious reasons
+                        bracket_nest_level += 1;
+
+                        //We should clear the buffer if we are starting to capture a bracket
+                        eq_buffer.clear();
+
+                        //continue the nestedloop
+                        continue 'nestedloop;
+                    }
+
+                    bracket_nest_level += 1;
+                },
+                Expression::RightBracket => {
+                    bracket_nest_level -= 1;
+                },
+                Expression::Brackets(_) => {
+                    continue;
+                }
+                _ => {}
+            }
+            
+            if *item == Expression::RightBracket {
+                if bracket_nest_level == 0 {
+                    let bracket_item = Expression::Brackets(parse_brackets(eq_buffer.clone())?);
+                    
+                    input.drain(first_left_bracket_occurence..=index);
+
+                    input.insert(first_left_bracket_occurence, bracket_item);
+
+                    //Reset loop index to avoid skipping items
+                    loop_index = 0;
+
+                    //Break out of loop to work with the updated list
+                    break 'nestedloop;
+                }
+            }
+
+            //Push back item to buffer 
+            eq_buffer.push(item.clone());
+        }
+
+        loop_index += 1;
+    }
+
+    Ok(input)
 }
 
 fn parse_expressions(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
