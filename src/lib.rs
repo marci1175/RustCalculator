@@ -32,7 +32,13 @@ impl Display for Expression {
             Expression::Power => "^".to_string(),
             Expression::LeftBracket => "(".to_string(),
             Expression::RightBracket => ")".to_string(),
-            Expression::Brackets(inner_eq) => format!("({:?})", inner_eq),
+            Expression::Brackets(inner_eq) => {
+                let inner_eq_str = inner_eq.iter().map(|item| {
+                    item.to_string()
+                }).collect::<Vec<String>>().concat();
+
+                format!("({inner_eq_str})")
+            },
             Expression::Number(inner_num) => format!("{}", inner_num),
         })
     }
@@ -43,7 +49,7 @@ pub struct Calculator {
     calculation: Vec<Expression>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 struct CalculatorError {
     /// Error type
     err_type: CalculatorErrorType,
@@ -79,21 +85,12 @@ impl CalculatorError {
         //Print out the user input equation
         println!("[Error occured]\nEquation: \n{erroring_input}");
 
-        // // ! Fix this logic cuz this does not work
-        // let character_count = self.input.iter().take(self.index).map(|item| {
-        //     match item {
-        //         Expression::Number(inner) => {
-        //             inner.to_string().len()
-        //         },
-        //         _ => 1,
-        //     }
-        // }).sum();
-        // //Move cursor to the error
-        // for _ in 0..character_count {
-        //     print!(" ");
-        // }
+        for _ in 0..self.index {
+            print!(" ")
+        }
 
-        println!("^\nError: {}", self.err_type)
+        println!("^\nError: {}", self.err_type);
+        println!("[Arrow may be at the wrong place]");
     }
 }
 
@@ -101,8 +98,11 @@ impl CalculatorError {
 enum CalculatorErrorType {
     #[error("Error while trying to tokenize the input")]
     ParseError,
+
+    ///Specific error codes are wrapped in this enum, ill write a document for it
     #[error("Error occured while calculating the equation")]
-    CalculationError,
+    CalculationError(u8),
+    
     #[error("The equation contains invalid formatting, for example brackets left open")]
     SyntaxError,
 }
@@ -117,23 +117,31 @@ impl Calculator {
     pub fn calculate(&mut self, input: String) -> Result<f64> {
         let formatted_calculation = input.trim().replace(" ", "");
 
-        let _ = Self::calculate_equation(formatted_calculation.clone()).inspect_err(|e| {
+        Self::parse_equation(formatted_calculation.clone()).inspect_err(|e| {
             e.downcast_ref::<CalculatorError>().unwrap().show_error();
-        });
+        })
 
-        todo!()
     }
 
-    fn calculate_equation(formatted_calculation: String) -> Result<f64> {
+    fn parse_equation(formatted_calculation: String) -> Result<f64> {
         //Tokenize
         let token_list = tokenize(formatted_calculation.clone())?;
 
         //Parse list, i.e introduce bracket items
         let parsed_list = parse(token_list)?;
 
-        dbg!(parsed_list);
+        Self::calculate_equation(parsed_list)
+    }
 
-        todo!()
+    fn calculate_equation(parsed_list: Vec<Expression>) -> Result<f64> {
+        let answ = calculate(parsed_list)?;
+
+        if let Expression::Number(number) = answ[0] {
+            return Ok(number);
+        }
+        else {
+            bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, 0, answ))
+        }
     }
 }
 
@@ -211,38 +219,13 @@ fn parse_brackets(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
     //This buffer is used to capture the inner equation of a future bracket (its not yet inserted)
     let mut eq_buffer: Vec<Expression> = Vec::new();
 
-    'mainloop: while input.len() > loop_index {
+    while input.len() > loop_index {
         let input_clone = input.clone();
 
         //reset every temp* variable
         eq_buffer.clear();
 
         'nestedloop: for (index, item) in input_clone.iter().enumerate() {
-            // if *item == Expression::LeftBracket {
-            //     //Increase bracket level
-            //     bracket_nest_level += 1;
-            //     let inner = input_clone[/* We add one to the index since that index is where the first ( appreared */ index + 1..input.len()].iter().take_while(|p| **p != Expression::RightBracket).cloned().collect::<Vec<_>>();
-            //     dbg!(&input_clone);
-            //     //Get which index the RightBracket appeared at; 
-            //     // ! we sould add ```index``` whenever we are using it
-            //     let rbracket_index = dbg!(input_clone[index..input.len()].iter().position(|p| *p == Expression::RightBracket));
-            //     if let Some(rbracket_index) = rbracket_index {
-            //         //We can decrease the value of this variable
-            //         bracket_nest_level -= 1;
-            //         //If this is true then it means that the nested brackets are contained in this bracket; however the brackets still contain an unparsed list 
-            //         if bracket_nest_level == 0 {
-            //             input.drain(index..=rbracket_index + index);
-            //             //parse_brackets(inner)?
-            //             input.insert(index, Expression::Brackets(inner));
-            //             //Break out of the loop
-            //             break;
-            //         }
-            //     }
-            // else {
-            //     //Rbracket was not closed
-            //     bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, index, input));
-            // }
-
             //We check bracket nestedness if its 0 we can modify the input replaing a certain range with a new Bracket item
             match item {
                 Expression::LeftBracket => {
@@ -291,6 +274,11 @@ fn parse_brackets(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
 
             //Push back item to buffer 
             eq_buffer.push(item.clone());
+        }
+
+        //check for left open brackets
+        if bracket_nest_level != 0 {
+            bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, dbg!(first_left_bracket_occurence), input))
         }
 
         loop_index += 1;
@@ -349,4 +337,51 @@ fn parse_expressions(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
     }
 
     Ok(input)
+}
+
+fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
+
+    //Calculate with the right order of mathematical calculations
+    //First check for ^
+    let mut loop_index = 0;
+    while loop_index < input.len() {
+
+        if input[loop_index] == Expression::Power {
+            let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone()))? {
+                Expression::Brackets(inner_eq) => {
+                    Calculator::calculate_equation(inner_eq.clone())?
+                },
+                Expression::Number(num) => {
+                    *num
+                }
+
+                _ => bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone())),
+            };
+
+            let rhs = match input.get(loop_index + 1).ok_or(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone()))? {
+                Expression::Brackets(inner_eq) => {
+                    Calculator::calculate_equation(inner_eq.clone())?
+                },
+                Expression::Number(num) => {
+                    *num
+                }
+
+                _ => bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone())),
+            };
+
+            let calc_result = lhs.powf(rhs);
+
+            //Drain calculated parts of the equation
+            input.drain(loop_index-1..=loop_index);
+
+            //Insert answ
+            input.insert(loop_index - 1, Expression::Number(calc_result));
+
+        }
+
+        loop_index += 1;
+    }
+
+    Ok(input)
+
 }
