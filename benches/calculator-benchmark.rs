@@ -3,7 +3,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 
 fn parsing_test() {
     let mut calculator =
-        Calculator::new().calculate(String::from("(((((((1))))) + (3434 * (((((1))))))))"));
+        Calculator::new().calculate("(((((((1))))) + (3434 * (((((1))))))))");
 }
 
 fn bench(c: &mut Criterion) {

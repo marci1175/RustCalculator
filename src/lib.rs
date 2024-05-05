@@ -114,7 +114,7 @@ impl Calculator {
         }
     }
 
-    pub fn calculate(&mut self, input: String) -> Result<f64> {
+    pub fn calculate(&mut self, input: &str) -> Result<f64> {
         let formatted_calculation = input.trim().replace(" ", "");
 
         Self::parse_equation(formatted_calculation.clone()).inspect_err(|e| {
