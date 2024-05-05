@@ -33,24 +33,23 @@ impl Display for Expression {
             Expression::LeftBracket => "(".to_string(),
             Expression::RightBracket => ")".to_string(),
             Expression::Brackets(inner_eq) => {
-                let inner_eq_str = inner_eq.iter().map(|item| {
-                    item.to_string()
-                }).collect::<Vec<String>>().concat();
+                let inner_eq_str = inner_eq
+                    .iter()
+                    .map(|item| item.to_string())
+                    .collect::<Vec<String>>()
+                    .concat();
 
                 format!("({inner_eq_str})")
-            },
+            }
             Expression::Number(inner_num) => format!("{}", inner_num),
         })
     }
 }
 
-pub struct Calculator {
-    //This is the parsed, tokennized input
-    calculation: Vec<Expression>,
-}
+pub struct Calculator {}
 
 #[derive(Debug, Clone, Error)]
-struct CalculatorError {
+pub struct CalculatorError {
     /// Error type
     err_type: CalculatorErrorType,
     /// The index where the error occured
@@ -78,7 +77,7 @@ impl CalculatorError {
         }
     }
 
-    fn show_error(&self) {
+    pub fn show_error(&self) {
         //Convert self.input to String
         let erroring_input: String = self.input.iter().map(|item| item.to_string()).collect();
 
@@ -99,28 +98,26 @@ enum CalculatorErrorType {
     #[error("Error while trying to tokenize the input")]
     ParseError,
 
-    ///Specific error codes are wrapped in this enum, ill write a document for it
-    #[error("Error occured while calculating the equation")]
+    ///Specific error codes are wrapped in this enum
+    #[error("This equation contains a conceptual error")]
+    /*
+        0: Tried to divide with 0
+    */
     CalculationError(u8),
-    
+
     #[error("The equation contains invalid formatting, for example brackets left open")]
     SyntaxError,
 }
 
 impl Calculator {
     pub fn new() -> Self {
-        Self {
-            calculation: Vec::new(),
-        }
+        Self {}
     }
 
     pub fn calculate(&mut self, input: &str) -> Result<f64> {
         let formatted_calculation = input.trim().replace(" ", "");
 
-        Self::parse_equation(formatted_calculation.clone()).inspect_err(|e| {
-            e.downcast_ref::<CalculatorError>().unwrap().show_error();
-        })
-
+        Self::parse_equation(formatted_calculation.clone())
     }
 
     fn parse_equation(formatted_calculation: String) -> Result<f64> {
@@ -138,9 +135,12 @@ impl Calculator {
 
         if let Expression::Number(number) = answ[0] {
             return Ok(number);
-        }
-        else {
-            bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, 0, answ))
+        } else {
+            bail!(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                0,
+                answ
+            ))
         }
     }
 }
@@ -229,8 +229,7 @@ fn parse_brackets(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
             //We check bracket nestedness if its 0 we can modify the input replaing a certain range with a new Bracket item
             match item {
                 Expression::LeftBracket => {
-
-                    //if bracket nestedness is 0 that means that this left bracket is the beginning of a new inner equation 
+                    //if bracket nestedness is 0 that means that this left bracket is the beginning of a new inner equation
                     if bracket_nest_level == 0 {
                         //Set first* occurence
                         first_left_bracket_occurence = index;
@@ -246,20 +245,20 @@ fn parse_brackets(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
                     }
 
                     bracket_nest_level += 1;
-                },
+                }
                 Expression::RightBracket => {
                     bracket_nest_level -= 1;
-                },
+                }
                 Expression::Brackets(_) => {
                     continue;
                 }
                 _ => {}
             }
-            
+
             if *item == Expression::RightBracket {
                 if bracket_nest_level == 0 {
                     let bracket_item = Expression::Brackets(parse_brackets(eq_buffer.clone())?);
-                    
+
                     input.drain(first_left_bracket_occurence..=index);
 
                     input.insert(first_left_bracket_occurence, bracket_item);
@@ -272,13 +271,17 @@ fn parse_brackets(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
                 }
             }
 
-            //Push back item to buffer 
+            //Push back item to buffer
             eq_buffer.push(item.clone());
         }
 
         //check for left open brackets
         if bracket_nest_level != 0 {
-            bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, dbg!(first_left_bracket_occurence), input))
+            bail!(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                dbg!(first_left_bracket_occurence),
+                input
+            ))
         }
 
         loop_index += 1;
@@ -340,48 +343,236 @@ fn parse_expressions(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
 }
 
 fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
-
     //Calculate with the right order of mathematical calculations
+    let mut loop_index;
+
     //First check for ^
-    let mut loop_index = 0;
+    //Reset index
+    loop_index = 0;
+
     while loop_index < input.len() {
-
         if input[loop_index] == Expression::Power {
-            let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone()))? {
-                Expression::Brackets(inner_eq) => {
-                    Calculator::calculate_equation(inner_eq.clone())?
-                },
-                Expression::Number(num) => {
-                    *num
-                }
+            let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
 
-                _ => bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone())),
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
             };
 
-            let rhs = match input.get(loop_index + 1).ok_or(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone()))? {
-                Expression::Brackets(inner_eq) => {
-                    Calculator::calculate_equation(inner_eq.clone())?
-                },
-                Expression::Number(num) => {
-                    *num
-                }
+            let rhs = match input.get(loop_index + 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
 
-                _ => bail!(CalculatorError::new(CalculatorErrorType::SyntaxError, loop_index, input.clone())),
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
             };
 
             let calc_result = lhs.powf(rhs);
 
             //Drain calculated parts of the equation
-            input.drain(loop_index-1..=loop_index);
+            input.drain(loop_index - 1..=loop_index);
 
             //Insert answ
             input.insert(loop_index - 1, Expression::Number(calc_result));
+        }
 
+        loop_index += 1;
+    }
+
+    //Check for * /
+    //Reset index
+    loop_index = 0;
+
+    while loop_index < input.len() {
+        if input[loop_index] == Expression::Multiplication {
+            let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            let rhs = match input.get(loop_index + 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            let calc_result = lhs * rhs;
+
+            //Drain calculated parts of the equation
+            input.drain(loop_index - 1..=loop_index);
+
+            //Insert answ
+            input.insert(loop_index - 1, Expression::Number(calc_result));
+        } else if input[loop_index] == Expression::Division {
+            let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            let rhs = match input.get(loop_index + 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            if rhs == 0. {
+                bail!(CalculatorError::new(
+                    CalculatorErrorType::CalculationError(0),
+                    loop_index + 1,
+                    input
+                ))
+            }
+
+            let calc_result = lhs / rhs;
+
+            //Drain calculated parts of the equation
+            input.drain(loop_index - 1..=loop_index);
+
+            //Insert answ
+            input.insert(loop_index - 1, Expression::Number(calc_result));
+        }
+        {}
+        loop_index += 1;
+    }
+
+    //Check for + -
+    //Reset index
+    loop_index = 0;
+
+    while loop_index < input.len() {
+        if input[loop_index] == Expression::Addition {
+            let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            let rhs = match input.get(loop_index + 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            let calc_result = lhs + rhs;
+
+            //Drain calculated parts of the equation
+            input.drain(loop_index - 1..=loop_index);
+
+            //Insert answ
+            input.insert(loop_index - 1, Expression::Number(calc_result));
+        } else if input[loop_index] == Expression::Subtraction {
+            let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            let rhs = match input.get(loop_index + 1).ok_or(CalculatorError::new(
+                CalculatorErrorType::SyntaxError,
+                loop_index,
+                input.clone(),
+            ))? {
+                Expression::Brackets(inner_eq) => Calculator::calculate_equation(inner_eq.clone())?,
+                Expression::Number(num) => *num,
+
+                _ => bail!(CalculatorError::new(
+                    CalculatorErrorType::SyntaxError,
+                    loop_index,
+                    input.clone()
+                )),
+            };
+
+            let calc_result = lhs - rhs;
+
+            //Drain calculated parts of the equation
+            input.drain(loop_index - 1..=loop_index);
+
+            //Insert answ
+            input.insert(loop_index - 1, Expression::Number(calc_result));
         }
 
         loop_index += 1;
     }
 
     Ok(input)
-
 }

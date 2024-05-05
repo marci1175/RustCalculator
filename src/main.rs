@@ -1,7 +1,28 @@
-use calculator_recode::Calculator;
+use std::io;
 
+use calculator_recode::Calculator;
+use calculator_recode::CalculatorError;
 fn main() {
     let mut calculator = Calculator::new();
+    
+    let mut input_buffer: String = String::new();
 
-    dbg!(calculator.calculate("3 ^ 0"));
+    loop {
+        match io::stdin().read_line(&mut input_buffer) {
+            Ok(_) => {
+                match calculator.calculate(&input_buffer) {
+                    Ok(answ) => println!("Answer: {answ}"),
+                    Err(err) => {
+                        err.downcast::<CalculatorError>().unwrap().show_error();
+                    },
+                }
+            },
+            Err(err) => {
+                println!("{err}")
+            },
+        };
+        
+        //Clear input buffer
+        input_buffer.clear();
+    }
 }
