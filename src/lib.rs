@@ -209,6 +209,11 @@ fn parse(input: Vec<Expression>) -> Result<Vec<Expression>> {
 }
 
 fn parse_brackets(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
+    //Check if there are any brackets
+    if !(input.contains(&Expression::LeftBracket) || input.contains(&Expression::RightBracket)) {
+        return Ok(input);
+    } 
+
     let mut loop_index = 0;
 
     //This will count how deep are we in the brackets, which will become useful wehn we are dealing with nested brackets
@@ -484,7 +489,6 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
             //Insert answ
             input.insert(loop_index - 1, Expression::Number(calc_result));
         }
-        {}
         loop_index += 1;
     }
 
