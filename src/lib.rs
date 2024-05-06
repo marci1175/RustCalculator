@@ -353,9 +353,10 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
 
     //First check for ^
     //Reset index
-    loop_index = 0;
+    loop_index = 1;
 
     while loop_index < input.len() {
+        
         if input[loop_index] == Expression::Power {
             let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
                 CalculatorErrorType::SyntaxError,
@@ -390,10 +391,15 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
             let calc_result = lhs.powf(rhs);
 
             //Drain calculated parts of the equation
-            input.drain(loop_index - 1..=loop_index);
+            input.drain(loop_index - 1..=loop_index + 1);
 
             //Insert answ
             input.insert(loop_index - 1, Expression::Number(calc_result));
+            
+            //Reset loop index
+            loop_index = 1;
+            //Break exceuction of this cycle
+            continue;
         }
 
         loop_index += 1;
@@ -401,7 +407,7 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
 
     //Check for * /
     //Reset index
-    loop_index = 0;
+    loop_index = 1;
 
     while loop_index < input.len() {
         if input[loop_index] == Expression::Multiplication {
@@ -438,10 +444,15 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
             let calc_result = lhs * rhs;
 
             //Drain calculated parts of the equation
-            input.drain(loop_index - 1..=loop_index);
+            input.drain(loop_index - 1..=loop_index + 1);
 
             //Insert answ
             input.insert(loop_index - 1, Expression::Number(calc_result));
+
+            //Reset loop index
+            loop_index = 1;
+            //Break exceuction of this cycle
+            continue;
         } else if input[loop_index] == Expression::Division {
             let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
                 CalculatorErrorType::SyntaxError,
@@ -484,17 +495,22 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
             let calc_result = lhs / rhs;
 
             //Drain calculated parts of the equation
-            input.drain(loop_index - 1..=loop_index);
+            input.drain(loop_index - 1..=loop_index + 1);
 
             //Insert answ
             input.insert(loop_index - 1, Expression::Number(calc_result));
+
+            //Reset loop index
+            loop_index = 1;
+            //Break exceuction of this cycle
+            continue;
         }
         loop_index += 1;
     }
 
     //Check for + -
     //Reset index
-    loop_index = 0;
+    loop_index = 1;
 
     while loop_index < input.len() {
         if input[loop_index] == Expression::Addition {
@@ -531,10 +547,16 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
             let calc_result = lhs + rhs;
 
             //Drain calculated parts of the equation
-            input.drain(loop_index - 1..=loop_index);
+            input.drain(loop_index - 1..=loop_index + 1);
 
             //Insert answ
             input.insert(loop_index - 1, Expression::Number(calc_result));
+
+            //Reset loop index
+            loop_index = 1;
+            //Break exceuction of this cycle
+            continue;
+
         } else if input[loop_index] == Expression::Subtraction {
             let lhs = match input.get(loop_index - 1).ok_or(CalculatorError::new(
                 CalculatorErrorType::SyntaxError,
@@ -569,10 +591,15 @@ fn calculate(mut input: Vec<Expression>) -> Result<Vec<Expression>> {
             let calc_result = lhs - rhs;
 
             //Drain calculated parts of the equation
-            input.drain(loop_index - 1..=loop_index);
+            input.drain(loop_index - 1..=loop_index + 1);
 
             //Insert answ
             input.insert(loop_index - 1, Expression::Number(calc_result));
+
+            //Reset loop index
+            loop_index = 1;
+            //Break exceuction of this cycle
+            continue;
         }
 
         loop_index += 1;
