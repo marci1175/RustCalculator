@@ -161,7 +161,14 @@ fn tokenize(input: String) -> Result<Vec<Expression>> {
         //If number buffer is not empty (Contains a number, so it cant start with a non-nuumber character)
         else if !number_buffer.is_empty() {
             //Push back number to the final_list
-            final_list.push(Expression::Number(number_buffer.parse::<f64>().unwrap()));
+            match number_buffer.parse::<f64>() {
+                Ok(parsed_number) => {
+                    final_list.push(Expression::Number(parsed_number));
+                },
+                Err(_) => {
+                    bail!(CalculatorError::new(CalculatorErrorType::CalculationError(1), index, final_list));
+                },
+            }
 
             //Clear buffer
             number_buffer.clear();
@@ -190,9 +197,16 @@ fn tokenize(input: String) -> Result<Vec<Expression>> {
         }
     }
 
-    //If num buffer is not empty we should push it back
+    //If num buffer is not empty we should push it back, to save the last number
     if !number_buffer.is_empty() {
-        final_list.push(Expression::Number(number_buffer.parse::<f64>().unwrap()));
+        match number_buffer.parse::<f64>() {
+            Ok(parsed_number) => {
+                final_list.push(Expression::Number(parsed_number));
+            },
+            Err(_) => {
+                bail!(CalculatorError::new(CalculatorErrorType::CalculationError(1), final_list.len() + 1, final_list));
+            },
+        }
     }
 
     Ok(final_list)

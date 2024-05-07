@@ -1,5 +1,12 @@
-use std::io;
+/* !
+ So instead of 
+2, MUL, 3, MUL 9 
+ I Should do 
+(2,MUL,(3, MUL, 9))
 
+*/
+
+use std::io;
 use calculator_recode::Calculator;
 use calculator_recode::CalculatorError;
 fn main() {
